@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Muse Content Viewer</title>
+<style>
+  :root {
+    --bg: #0d1117; --surface: #161b22; --surface2: #1c2128; --border: #30363d;
+    --text: #e6edf3; --text-dim: #8b949e; --accent: #58a6ff;
+    --green: #3fb950; --yellow: #d29922; --red: #f85149; --purple: #bc8cff;
+    --orange: #f0883e; --pink: #ff7eb6;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; }
+
+  /* Header */
+  .header { padding: 16px 32px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 16px; }
+  .header h1 { font-size: 18px; font-weight: 600; }
+  .header .stats { color: var(--text-dim); font-size: 13px; margin-left: auto; display: flex; gap: 16px; }
+  .stat-item { display: flex; align-items: center; gap: 4px; }
+  .stat-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .stat-dot.green { background: var(--green); }
+  .stat-dot.yellow { background: var(--yellow); }
+  .stat-dot.dim { background: var(--text-dim); }
+
+  /* Source toggle */
+  .source-toggle { display: flex; gap: 0; border-bottom: 1px solid var(--border); padding: 0 32px; }
+  .src-tab { padding: 10px 20px; font-size: 13px; font-weight: 500; color: var(--text-dim); cursor: pointer;
+    border-bottom: 2px solid transparent; transition: all 0.15s; }
+  .src-tab:hover { color: var(--text); }
+  .src-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* Controls */
+  .controls { padding: 10px 32px; border-bottom: 1px solid var(--border); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .filter-group { display: flex; gap: 4px; align-items: center; }
+  .filter-group-label { font-size: 11px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px; margin-right: 4px; }
+  .pill { padding: 4px 12px; border-radius: 16px; border: 1px solid var(--border); background: transparent;
+    color: var(--text-dim); font-size: 12px; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+  .pill:hover { border-color: var(--accent); color: var(--accent); }
+  .pill.active { background: var(--accent); color: #000; border-color: var(--accent); font-weight: 600; }
+  .sep { width: 1px; height: 24px; background: var(--border); margin: 0 8px; }
+  .search { padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface);
+    color: var(--text); font-size: 13px; width: 200px; }
+  .search:focus { outline: none; border-color: var(--accent); }
+  .sort-select { padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface);
+    color: var(--text); font-size: 12px; cursor: pointer; }
+  .sort-select:focus { outline: none; border-color: var(--accent); }
+  .controls-right { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+
+  /* Container */
+  .container { max-width: 1400px; margin: 0 auto; padding: 16px 32px; }
+
+  /* Card (shared) */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    margin-bottom: 8px; transition: border-color 0.15s; overflow: hidden; }
+  .card:hover { border-color: #444c56; }
+  .card-header { padding: 14px 20px; cursor: pointer; display: flex; flex-direction: column; gap: 8px; }
+  .card-row1 { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .card-row2 { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+  .badge { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 500; }
+  .source-badge { font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
+  .source-openai { background: rgba(16,163,127,.15); color: #10a37f; }
+  .source-anthropic { background: rgba(204,169,120,.15); color: #cca978; }
+  .source-google_deepmind { background: rgba(66,133,244,.15); color: #4285f4; }
+  .source-huggingface { background: rgba(255,213,0,.15); color: #ffd500; }
+  .source-nvidia { background: rgba(118,185,0,.15); color: #76b900; }
+  .source-meta_ai { background: rgba(0,122,255,.15); color: #007aff; }
+  .source-apple_ml { background: rgba(168,168,168,.15); color: #a8a8a8; }
+  .source-figma { background: rgba(162,89,255,.15); color: #a259ff; }
+  .source-cursor { background: rgba(0,200,200,.15); color: #00c8c8; }
+  .source-latent_space { background: rgba(255,107,107,.15); color: #ff6b6b; }
+  .source-import_ai { background: rgba(255,165,0,.15); color: #ffa500; }
+  .source-the_rundown { background: rgba(0,206,209,.15); color: #00ced1; }
+  .source-microsoft_research { background: rgba(0,120,212,.15); color: #0078d4; }
+  .source-xhs { background: rgba(255,126,182,.15); color: var(--pink); }
+
+  .cat-badge { background: rgba(88,166,255,.1); color: var(--accent); }
+  .tag-badge { background: rgba(139,148,158,.1); color: var(--text-dim); font-size: 10px; }
+  .status-badge { font-size: 10px; }
+  .status-classified { background: rgba(63,185,80,.12); color: var(--green); }
+  .status-enriched { background: rgba(188,140,255,.12); color: var(--purple); }
+  .status-exported { background: rgba(240,136,62,.12); color: var(--orange); }
+  .status-pending { background: rgba(139,148,158,.08); color: var(--text-dim); }
+  .type-badge { background: rgba(88,166,255,.1); color: var(--accent); font-size: 10px; }
+
+  .title-text { font-size: 15px; font-weight: 600; line-height: 1.3; flex: 1; }
+  .date-group { display: flex; gap: 4px; align-items: center; white-space: nowrap; flex-shrink: 0; }
+  .date-chip { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 500; }
+  .date-chip.pub { background: rgba(88,166,255,.12); color: var(--accent); }
+  .date-chip.cap { background: rgba(139,148,158,.1); color: var(--text-dim); }
+
+  /* Score bars */
+  .scores { display: flex; gap: 14px; flex-wrap: wrap; }
+  .score { display: flex; align-items: center; gap: 5px; font-size: 11px; }
+  .score-label { color: var(--text-dim); }
+  .score-bar { width: 50px; height: 5px; background: var(--border); border-radius: 3px; overflow: hidden; }
+  .score-fill { height: 100%; border-radius: 3px; }
+  .score-val { font-weight: 600; min-width: 24px; font-size: 11px; }
+  .summary-preview { color: var(--text-dim); font-size: 13px; line-height: 1.5; margin-top: 4px; }
+
+  /* XHS thumbnail strip */
+  .img-strip { display: flex; gap: 6px; margin-top: 4px; }
+  .img-thumb { width: 72px; height: 72px; object-fit: cover; border-radius: 6px;
+    border: 1px solid var(--border); background: var(--surface2); cursor: pointer; }
+  .img-thumb:hover { border-color: var(--accent); }
+  .img-more { width: 72px; height: 72px; border-radius: 6px; border: 1px solid var(--border);
+    background: var(--surface2); display: flex; align-items: center; justify-content: center;
+    font-size: 12px; color: var(--text-dim); }
+
+  /* Engagement row (XHS) */
+  .engagement-row { display: flex; gap: 12px; font-size: 12px; color: var(--text-dim); }
+  .eng-item { display: flex; align-items: center; gap: 3px; }
+
+  /* Detail panel */
+  .detail { display: none; border-top: 1px solid var(--border); }
+  .detail.open { display: block; }
+
+  .tabs { display: flex; border-bottom: 1px solid var(--border); padding: 0 20px; background: var(--surface2);
+    overflow-x: auto; }
+  .tab { padding: 10px 16px; font-size: 12px; color: var(--text-dim); cursor: pointer;
+    border-bottom: 2px solid transparent; transition: all 0.15s; white-space: nowrap; }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .tab.has-data::after { content: ''; display: inline-block; width: 5px; height: 5px; border-radius: 50%;
+    background: var(--green); margin-left: 6px; vertical-align: middle; }
+
+  .tab-content { display: none; padding: 16px 20px; max-height: 600px; overflow-y: auto; }
+  .tab-content.active { display: block; }
+
+  .section { margin-bottom: 16px; }
+  .section-title { font-size: 12px; font-weight: 600; color: var(--accent); text-transform: uppercase;
+    letter-spacing: 0.5px; margin-bottom: 8px; }
+  .section-body { color: var(--text-dim); font-size: 13px; line-height: 1.7; }
+  .section-body p { margin-bottom: 8px; }
+
+  .reasoning-json { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px;
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace; font-size: 12px; color: var(--text-dim);
+    white-space: pre-wrap; word-break: break-word; max-height: 300px; overflow-y: auto; }
+
+  .score-detail { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+  .score-card { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+  .score-card-label { font-size: 11px; color: var(--text-dim); margin-bottom: 4px; }
+  .score-card-value { font-size: 24px; font-weight: 700; }
+  .score-card-bar { height: 4px; background: var(--border); border-radius: 2px; margin-top: 6px; }
+  .score-card-fill { height: 100%; border-radius: 2px; }
+
+  .expert-review { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px; line-height: 1.7; }
+  .expert-review h1, .expert-review h2, .expert-review h3 { color: var(--text); margin: 14px 0 6px; font-size: 15px; }
+  .expert-review h3 { font-size: 13px; }
+  .expert-review p { margin-bottom: 8px; color: var(--text-dim); }
+  .expert-review ul, .expert-review ol { margin: 6px 0 6px 20px; color: var(--text-dim); }
+  .expert-review strong { color: var(--text); }
+
+  .raw-content { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px;
+    font-size: 13px; color: var(--text-dim); line-height: 1.7; white-space: pre-wrap; word-break: break-word;
+    max-height: 500px; overflow-y: auto; }
+
+  .meta-row { display: flex; gap: 16px; margin-top: 10px; font-size: 12px; color: var(--text-dim); flex-wrap: wrap; }
+  .meta-row a { color: var(--accent); text-decoration: none; }
+  .meta-row a:hover { text-decoration: underline; }
+
+  /* Gallery grid (XHS detail) */
+  .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; margin-bottom: 16px; }
+  .gallery-img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px;
+    border: 1px solid var(--border); cursor: pointer; transition: border-color 0.15s; }
+  .gallery-img:hover { border-color: var(--accent); }
+  .gallery-img-error { width: 100%; aspect-ratio: 1; background: var(--surface2); border-radius: 8px;
+    border: 1px solid var(--border); display: flex; align-items: center; justify-content: center;
+    color: var(--text-dim); font-size: 12px; }
+  .video-player-wrap { margin-bottom: 16px; }
+  .video-player-wrap video { width: 100%; max-height: 400px; border-radius: 8px; border: 1px solid var(--border); }
+  .video-placeholder { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 24px; text-align: center; color: var(--text-dim); font-size: 13px; margin-bottom: 16px; }
+  .no-media { color: var(--text-dim); font-size: 13px; padding: 20px 0; }
+
+  /* Lightbox */
+  .lightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.92);
+    z-index: 9999; align-items: center; justify-content: center; }
+  .lightbox.open { display: flex; }
+  .lightbox-img { max-width: 90vw; max-height: 90vh; object-fit: contain; border-radius: 6px; }
+  .lightbox-close { position: absolute; top: 20px; right: 24px; font-size: 28px; color: var(--text-dim);
+    cursor: pointer; background: none; border: none; line-height: 1; }
+  .lightbox-close:hover { color: var(--text); }
+  .lightbox-arrow { position: absolute; top: 50%; transform: translateY(-50%); font-size: 36px;
+    color: var(--text-dim); cursor: pointer; background: rgba(0,0,0,.4); border: none;
+    padding: 12px 16px; border-radius: 8px; line-height: 1; }
+  .lightbox-arrow:hover { color: var(--text); background: rgba(0,0,0,.7); }
+  .lightbox-prev { left: 20px; }
+  .lightbox-next { right: 20px; }
+  .lightbox-counter { position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
+    color: var(--text-dim); font-size: 13px; }
+
+  .empty { text-align: center; padding: 60px; color: var(--text-dim); }
+
+  /* Build footer */
+  .build-footer { text-align: center; padding: 16px; color: var(--text-dim); font-size: 11px;
+    border-top: 1px solid var(--border); margin-top: 32px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Muse Content Viewer</h1>
+  <div class="stats" id="stats"></div>
+</div>
+
+<div class="source-toggle">
+  <div class="src-tab active" id="tab-news" onclick="switchSource('news')">AI News</div>
+  <div class="src-tab" id="tab-xhs" onclick="switchSource('xhs')">XHS Posts</div>
+</div>
+
+<!-- AI News controls -->
+<div class="controls" id="news-controls">
+  <div class="filter-group" id="source-filters">
+    <span class="filter-group-label">Source</span>
+    <button class="pill active" data-filter="source" data-value="all">All</button>
+  </div>
+  <div class="sep"></div>
+  <div class="filter-group" id="category-filters">
+    <span class="filter-group-label">Category</span>
+    <button class="pill active" data-filter="category" data-value="all">All</button>
+  </div>
+  <div class="sep"></div>
+  <div class="filter-group" id="status-filters">
+    <span class="filter-group-label">Status</span>
+    <button class="pill active" data-filter="status" data-value="all">All</button>
+    <button class="pill" data-filter="status" data-value="classified">Classified</button>
+    <button class="pill" data-filter="status" data-value="enriched">Enriched</button>
+    <button class="pill" data-filter="status" data-value="has_expert">Has Expert</button>
+    <button class="pill" data-filter="status" data-value="pending">Pending</button>
+  </div>
+  <div class="controls-right">
+    <select class="sort-select" id="news-sort">
+      <option value="date_desc">Newest first</option>
+      <option value="date_asc">Oldest first</option>
+      <option value="ai_desc">AI Value high</option>
+      <option value="muse_desc">Muse high</option>
+      <option value="career_desc">Career high</option>
+      <option value="project_desc">Project high</option>
+    </select>
+    <input class="search" type="text" id="news-search" placeholder="Search...">
+  </div>
+</div>
+
+<!-- XHS controls -->
+<div class="controls" id="xhs-controls" style="display:none">
+  <div class="filter-group" id="xhs-category-filters">
+    <span class="filter-group-label">Category</span>
+    <button class="pill active" data-xfilter="category" data-value="all">All</button>
+  </div>
+  <div class="sep"></div>
+  <div class="filter-group" id="xhs-status-filters">
+    <span class="filter-group-label">Status</span>
+    <button class="pill active" data-xfilter="status" data-value="all">All</button>
+    <button class="pill" data-xfilter="status" data-value="classified">Classified</button>
+    <button class="pill" data-xfilter="status" data-value="enriched">Enriched</button>
+    <button class="pill" data-xfilter="status" data-value="has_expert">Has Expert</button>
+    <button class="pill" data-xfilter="status" data-value="pending">Pending</button>
+  </div>
+  <div class="controls-right">
+    <select class="sort-select" id="xhs-sort">
+      <option value="date_desc">Newest first</option>
+      <option value="date_asc">Oldest first</option>
+      <option value="ai_desc">AI Value high</option>
+      <option value="muse_desc">Muse high</option>
+      <option value="career_desc">Career high</option>
+    </select>
+    <input class="search" type="text" id="xhs-search" placeholder="Search XHS...">
+  </div>
+</div>
+
+<div class="container" id="news-container"></div>
+<div class="container" id="xhs-container" style="display:none"></div>
+
+<div class="build-footer" id="build-footer"></div>
+
+<!-- Lightbox -->
+<div class="lightbox" id="lightbox" onclick="closeLightboxOnBg(event)">
+  <button class="lightbox-close" onclick="closeLightbox()">&#x2715;</button>
+  <button class="lightbox-arrow lightbox-prev" onclick="lightboxPrev(event)">&#x2039;</button>
+  <img class="lightbox-img" id="lightbox-img" src="" alt="">
+  <button class="lightbox-arrow lightbox-next" onclick="lightboxNext(event)">&#x203a;</button>
+  <div class="lightbox-counter" id="lightbox-counter"></div>
+</div>
+
+<script>
+// ---------------------------------------------------------------------------
+// State
+// ---------------------------------------------------------------------------
+let activeSource = 'news';
+let articles = [];
+let xhsPosts = [];
+
+// AI News filter state
+let activeNewsSource = 'all', activeNewsCat = 'all', activeNewsStatus = 'all';
+let newsSearch = '', newsSortKey = 'date_desc';
+
+// XHS filter state
+let activeXhsCat = 'all', activeXhsStatus = 'all';
+let xhsSearch = '', xhsSortKey = 'date_desc';
+
+// Lightbox
+let lbImages = [], lbIdx = 0;
+
+// ---------------------------------------------------------------------------
+// Source toggle
+// ---------------------------------------------------------------------------
+function switchSource(src) {
+  activeSource = src;
+  document.getElementById('tab-news').classList.toggle('active', src === 'news');
+  document.getElementById('tab-xhs').classList.toggle('active', src === 'xhs');
+  document.getElementById('news-controls').style.display = src === 'news' ? '' : 'none';
+  document.getElementById('xhs-controls').style.display = src === 'xhs' ? '' : 'none';
+  document.getElementById('news-container').style.display = src === 'news' ? '' : 'none';
+  document.getElementById('xhs-container').style.display = src === 'xhs' ? '' : 'none';
+  updateStats();
+}
+
+// ---------------------------------------------------------------------------
+// Utilities (shared)
+// ---------------------------------------------------------------------------
+const SRC = {
+  openai:'OpenAI', anthropic:'Anthropic', google_deepmind:'DeepMind',
+  huggingface:'HuggingFace', nvidia:'NVIDIA', meta_ai:'Meta AI',
+  apple_ml:'Apple ML', figma:'Figma', cursor:'Cursor',
+  latent_space:'Latent Space', import_ai:'Import AI',
+  the_rundown:'The Rundown', microsoft_research:'Microsoft Research'
+};
+
+function sColor(v) {
+  if (v >= 0.75) return 'var(--green)';
+  if (v >= 0.5) return 'var(--yellow)';
+  if (v >= 0.25) return 'var(--accent)';
+  return 'var(--text-dim)';
+}
+
+function scoreHtml(label, val) {
+  if (val == null) return '';
+  const pct = Math.round(val * 100);
+  return `<div class="score"><span class="score-label">${label}</span>
+    <div class="score-bar"><div class="score-fill" style="width:${pct}%;background:${sColor(val)}"></div></div>
+    <span class="score-val" style="color:${sColor(val)}">${pct}</span></div>`;
+}
+
+function scoreCard(label, val) {
+  if (val == null) return '';
+  const pct = Math.round(val * 100);
+  return `<div class="score-card"><div class="score-card-label">${label}</div>
+    <div class="score-card-value" style="color:${sColor(val)}">${pct}</div>
+    <div class="score-card-bar"><div class="score-card-fill" style="width:${pct}%;background:${sColor(val)}"></div></div></div>`;
+}
+
+function esc(s) {
+  if (!s) return '';
+  const d = document.createElement('div');
+  d.appendChild(document.createTextNode(s));
+  return d.innerHTML;
+}
+
+function strip(s) { if (!s) return ''; return s.replace(/<[^>]*>/g, ''); }
+
+function fmtDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + ' ' +
+    d.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit',hour12:false});
+}
+
+function fmtTs(ts) {
+  if (!ts) return 'N/A';
+  return new Date(ts * 1000).toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false});
+}
+
+function simpleMarkdown(md) {
+  if (!md) return '';
+  let h = esc(md);
+  h = h.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+  h = h.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+  h = h.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+  h = h.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  h = h.replace(/\*(.+?)\*/g, '<em>$1</em>');
+  h = h.replace(/^- (.+)$/gm, '<li>$1</li>');
+  h = h.replace(/\n\n/g, '</p><p>');
+  h = h.replace(/\n/g, '<br>');
+  return h;
+}
+
+// ---------------------------------------------------------------------------
+// Stats
+// ---------------------------------------------------------------------------
+function updateStats() {
+  const el = document.getElementById('stats');
+  if (activeSource === 'news') {
+    const total = articles.length;
+    const classified = articles.filter(a => a.classified_at).length;
+    const enriched = articles.filter(a => a.enriched_at).length;
+    const expert = articles.filter(a => a.expert_review).length;
+    el.innerHTML = `
+      <span class="stat-item"><span class="stat-dot dim"></span> ${total} total</span>
+      <span class="stat-item"><span class="stat-dot green"></span> ${classified} classified</span>
+      <span class="stat-item"><span class="stat-dot" style="background:var(--purple)"></span> ${enriched} enriched</span>
+      <span class="stat-item"><span class="stat-dot" style="background:var(--orange)"></span> ${expert} expert</span>`;
+  } else {
+    const total = xhsPosts.length;
+    const classified = xhsPosts.filter(p => p.classified_at).length;
+    const enriched = xhsPosts.filter(p => p.enriched_at).length;
+    const withImg = xhsPosts.filter(p => (p.db_images||[]).length > 0).length;
+    el.innerHTML = `
+      <span class="stat-item"><span class="stat-dot dim"></span> ${total} posts</span>
+      <span class="stat-item"><span class="stat-dot green"></span> ${classified} classified</span>
+      <span class="stat-item"><span class="stat-dot" style="background:var(--purple)"></span> ${enriched} enriched</span>
+      <span class="stat-item"><span class="stat-dot" style="background:var(--pink)"></span> ${withImg} with images</span>`;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// AI News rendering
+// ---------------------------------------------------------------------------
+function matchNewsFilter(a) {
+  if (activeNewsSource !== 'all' && a.source !== activeNewsSource) return false;
+  if (activeNewsCat !== 'all' && a.category !== activeNewsCat) return false;
+  if (activeNewsStatus === 'classified' && !a.classified_at) return false;
+  if (activeNewsStatus === 'enriched' && !a.enriched_at) return false;
+  if (activeNewsStatus === 'has_expert' && !a.expert_review) return false;
+  if (activeNewsStatus === 'pending' && a.enriched_at) return false;
+  if (newsSearch) {
+    const q = newsSearch.toLowerCase();
+    if (!(a.title + ' ' + (a.llm_summary||'') + ' ' + a.source).toLowerCase().includes(q)) return false;
+  }
+  return true;
+}
+
+function sortNews(arr) {
+  const copy = [...arr];
+  switch(newsSortKey) {
+    case 'date_asc': return copy.sort((a,b) => (a.published_at||'').localeCompare(b.published_at||''));
+    case 'ai_desc': return copy.sort((a,b) => (b.ai_value_score||0)-(a.ai_value_score||0));
+    case 'muse_desc': return copy.sort((a,b) => (b.muse_relevance||0)-(a.muse_relevance||0));
+    case 'career_desc': return copy.sort((a,b) => (b.career_relevance||0)-(a.career_relevance||0));
+    case 'project_desc': return copy.sort((a,b) => (b.project_relevance||0)-(a.project_relevance||0));
+    default: return copy.sort((a,b) => (b.published_at||'').localeCompare(a.published_at||''));
+  }
+}
+
+function renderNews() {
+  const filtered = sortNews(articles.filter(matchNewsFilter));
+  const c = document.getElementById('news-container');
+  if (!filtered.length) { c.innerHTML = '<div class="empty">No articles match filters.</div>'; return; }
+
+  c.innerHTML = filtered.map((a, i) => {
+    const idx = articles.indexOf(a);
+    const preview = a.llm_summary ? strip(a.llm_summary).substring(0,200)+'...' :
+      (a.content ? strip(a.content).substring(0,150)+'...' : '');
+    const statusBadges = [
+      a.classified_at ? '<span class="badge status-badge status-classified">classified</span>' : '<span class="badge status-badge status-pending">not classified</span>',
+      a.enriched_at ? '<span class="badge status-badge status-enriched">enriched</span>' : '',
+      a.expert_review ? '<span class="badge status-badge status-exported">expert</span>' : '',
+      a.translated_content ? '<span class="badge status-badge" style="background:rgba(88,166,255,.1);color:var(--accent)">translated</span>' : '',
+    ].filter(Boolean).join('');
+    let reasoning = '';
+    if (a.classification_reasoning) {
+      try { reasoning = JSON.stringify(JSON.parse(a.classification_reasoning), null, 2); }
+      catch(e) { reasoning = a.classification_reasoning; }
+    }
+    return `<div class="card" id="ncard-${idx}">
+      <div class="card-header" onclick="toggleNews(${idx})">
+        <div class="card-row1">
+          <span class="badge source-badge source-${esc(a.source)}">${SRC[a.source]||esc(a.source)}</span>
+          ${a.category ? `<span class="badge cat-badge">${esc(a.category)}</span>` : ''}
+          ${statusBadges}
+          <div class="date-group">
+            ${a.published_at ? `<span class="date-chip pub">&uarr; ${fmtDate(a.published_at)}</span>` : ''}
+            ${a.scraped_at ? `<span class="date-chip cap">&darr; ${fmtTs(a.scraped_at)}</span>` : ''}
+          </div>
+        </div>
+        <div class="title-text">${esc(a.title)}</div>
+        <div class="card-row2">
+          <div class="scores">
+            ${scoreHtml('AI', a.ai_value_score)}${scoreHtml('Muse', a.muse_relevance)}
+            ${scoreHtml('Career', a.career_relevance)}${scoreHtml('Project', a.project_relevance)}
+            ${scoreHtml('Impact', a.impact)}${scoreHtml('Urgency', a.urgency)}
+          </div>
+        </div>
+        ${preview ? `<div class="summary-preview">${esc(preview)}</div>` : ''}
+      </div>
+      <div class="detail" id="ndetail-${idx}">
+        <div class="tabs" id="ntabs-${idx}">
+          <div class="tab active ${a.classified_at?'has-data':''}" data-tab="classify" onclick="switchTab('n',${idx},'classify')">Classification</div>
+          <div class="tab ${a.enriched_at?'has-data':''}" data-tab="enrich" onclick="switchTab('n',${idx},'enrich')">Enrichment</div>
+          <div class="tab ${a.expert_review?'has-data':''}" data-tab="expert" onclick="switchTab('n',${idx},'expert')">Expert Review</div>
+          <div class="tab ${a.translated_content?'has-data':''}" data-tab="trans" onclick="switchTab('n',${idx},'trans')">Translation</div>
+          <div class="tab ${a.content?'has-data':''}" data-tab="raw" onclick="switchTab('n',${idx},'raw')">Raw Content</div>
+        </div>
+        <div class="tab-content active" id="ntc-${idx}-classify">
+          <div class="section"><div class="section-title">Scores</div>
+            <div class="score-detail">${scoreCard('AI Value',a.ai_value_score)}${scoreCard('Impact',a.impact)}${scoreCard('Urgency',a.urgency)}${scoreCard('Muse Relevance',a.muse_relevance)}${scoreCard('Career Relevance',a.career_relevance)}${scoreCard('Project Relevance',a.project_relevance)}</div>
+          </div>
+          <div class="section"><div class="section-title">Reasoning</div>
+            <div class="reasoning-json">${reasoning ? esc(reasoning) : '<em>No reasoning data</em>'}</div>
+          </div>
+          <div class="meta-row">
+            <span>Classified: ${fmtTs(a.classified_at)}</span>
+            <span>Category: <strong>${esc(a.category||'N/A')}</strong></span>
+            <a href="${esc(a.url)}" target="_blank" rel="noopener">Open original</a>
+            ${a.author ? `<span>By ${esc(a.author)}</span>` : ''}
+          </div>
+        </div>
+        <div class="tab-content" id="ntc-${idx}-enrich">
+          ${a.llm_summary ? `<div class="section"><div class="section-title">Summary</div><div class="section-body">${simpleMarkdown(a.llm_summary)}</div></div>` : ''}
+          ${a.llm_evaluation ? `<div class="section"><div class="section-title">Evaluation</div><div class="section-body">${simpleMarkdown(a.llm_evaluation)}</div></div>` : ''}
+          ${a.personal_insights ? `<div class="section"><div class="section-title">Personal Insights</div><div class="section-body">${simpleMarkdown(a.personal_insights)}</div></div>` : ''}
+          ${a.deep_dive ? `<div class="section"><div class="section-title">Deep Dive</div><div class="section-body">${simpleMarkdown(a.deep_dive)}</div></div>` : ''}
+          ${!a.enriched_at ? '<div class="empty">Not yet enriched</div>' : ''}
+          <div class="meta-row"><span>Enriched: ${fmtTs(a.enriched_at)}</span></div>
+        </div>
+        <div class="tab-content" id="ntc-${idx}-expert">
+          ${a.expert_review ? `<div class="expert-review">${simpleMarkdown(a.expert_review)}</div>` : '<div class="empty">No expert review (scores below threshold)</div>'}
+        </div>
+        <div class="tab-content" id="ntc-${idx}-trans">
+          ${a.translated_content ? `<div class="section-body" style="line-height:1.8">${simpleMarkdown(a.translated_content)}</div>` : '<div class="empty">No translation</div>'}
+        </div>
+        <div class="tab-content" id="ntc-${idx}-raw">
+          <div class="raw-content">${a.content ? esc(strip(a.content)) : '<em>No content</em>'}</div>
+          <div class="meta-row">
+            <span>Length: ${(strip(a.content)||'').length.toLocaleString()} chars</span>
+            <span>Scraped: ${fmtTs(a.scraped_at)}</span>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleNews(idx) {
+  document.getElementById('ndetail-'+idx).classList.toggle('open');
+}
+
+// ---------------------------------------------------------------------------
+// XHS rendering
+// ---------------------------------------------------------------------------
+function matchXhsFilter(p) {
+  if (activeXhsCat !== 'all' && p.category !== activeXhsCat) return false;
+  if (activeXhsStatus === 'classified' && !p.classified_at) return false;
+  if (activeXhsStatus === 'enriched' && !p.enriched_at) return false;
+  if (activeXhsStatus === 'has_expert' && !p.expert_review) return false;
+  if (activeXhsStatus === 'pending' && p.enriched_at) return false;
+  if (xhsSearch) {
+    const q = xhsSearch.toLowerCase();
+    const hay = (p.title + ' ' + (p.llm_summary||'') + ' ' + (p.tags||[]).join(' ')).toLowerCase();
+    if (!hay.includes(q)) return false;
+  }
+  return true;
+}
+
+function sortXhs(arr) {
+  const copy = [...arr];
+  switch(xhsSortKey) {
+    case 'date_asc': return copy.sort((a,b) => (a.first_seen_at||0)-(b.first_seen_at||0));
+    case 'ai_desc': return copy.sort((a,b) => (b.ai_value_score||0)-(a.ai_value_score||0));
+    case 'muse_desc': return copy.sort((a,b) => (b.muse_relevance||0)-(a.muse_relevance||0));
+    case 'career_desc': return copy.sort((a,b) => (b.career_relevance||0)-(a.career_relevance||0));
+    default: return copy.sort((a,b) => (b.first_seen_at||0)-(a.first_seen_at||0));
+  }
+}
+
+function xhsImageUrl(noteId, idx) {
+  return `media/images/${encodeURIComponent(noteId)}/image_${idx}.jpg`;
+}
+
+function renderXhs() {
+  const filtered = sortXhs(xhsPosts.filter(matchXhsFilter));
+  const c = document.getElementById('xhs-container');
+  if (!filtered.length) { c.innerHTML = '<div class="empty">No XHS posts match filters.</div>'; return; }
+
+  c.innerHTML = filtered.map(p => {
+    const idx = xhsPosts.indexOf(p);
+    const noteId = p.red_id;
+    const dbImgs = p.db_images || [];
+    const meta = p.metadata || {};
+    const eng = p.engagement || {};
+    const auth = p.author || {};
+    const isVideo = meta.note_type === 'video' || meta.note_type === 'normal_video' || meta.post_type === 'video';
+    const tags = (p.tags || []).slice(0,3);
+
+    // Thumbnail strip
+    let thumbHtml = '';
+    if (dbImgs.length > 0) {
+      const show = dbImgs.slice(0,3);
+      thumbHtml = `<div class="img-strip">${show.map((img,i) =>
+        `<img class="img-thumb" src="${xhsImageUrl(noteId, img.image_index)}"
+          alt="img${i}" loading="lazy"
+          onclick="event.stopPropagation();openLightbox(${idx},${i})"
+          onerror="this.style.display='none'">`
+      ).join('')}${dbImgs.length > 3 ? `<div class="img-more">+${dbImgs.length-3}</div>` : ''}</div>`;
+    } else if (isVideo) {
+      thumbHtml = `<div class="img-strip"><div class="img-more">&#9654; video</div></div>`;
+    }
+
+    const preview = p.llm_summary ? strip(p.llm_summary).substring(0,180)+'...' :
+      (p.content ? p.content.substring(0,150)+'...' : '');
+
+    const statusBadges = [
+      p.classified_at ? '<span class="badge status-badge status-classified">classified</span>' : '',
+      p.enriched_at ? '<span class="badge status-badge status-enriched">enriched</span>' : '',
+      p.expert_review ? '<span class="badge status-badge status-exported">expert</span>' : '',
+    ].filter(Boolean).join('');
+
+    return `<div class="card" id="xcard-${idx}">
+      <div class="card-header" onclick="toggleXhs(${idx})">
+        <div class="card-row1">
+          <span class="badge source-badge source-xhs">XHS</span>
+          ${isVideo ? '<span class="badge type-badge">video</span>' : '<span class="badge type-badge">photo</span>'}
+          ${p.category ? `<span class="badge cat-badge">${esc(p.category)}</span>` : ''}
+          ${tags.map(t => `<span class="badge tag-badge">#${esc(t)}</span>`).join('')}
+          ${statusBadges}
+          <div class="date-group">
+            ${p.publish_date ? `<span class="date-chip pub">&uarr; ${esc(p.publish_date)}</span>` : ''}
+            ${p.first_seen_at ? `<span class="date-chip cap">&darr; ${fmtTs(p.first_seen_at)}</span>` : ''}
+          </div>
+        </div>
+        ${thumbHtml}
+        <div class="title-text">${esc(p.title)}</div>
+        <div class="card-row2">
+          <div class="engagement-row">
+            ${eng.liked_count != null ? `<span class="eng-item">&#10084;&#65039; ${eng.liked_count.toLocaleString()}</span>` : ''}
+            ${eng.comment_count != null ? `<span class="eng-item">&#128172; ${eng.comment_count.toLocaleString()}</span>` : ''}
+            ${eng.collected_count != null ? `<span class="eng-item">&#128278; ${eng.collected_count.toLocaleString()}</span>` : ''}
+            ${auth.nickname ? `<span class="eng-item" style="margin-left:auto">&#128100; ${esc(auth.nickname)}</span>` : ''}
+          </div>
+        </div>
+        <div class="card-row2">
+          <div class="scores">
+            ${scoreHtml('AI', p.ai_value_score)}
+            ${scoreHtml('Muse', p.muse_value_score)}
+            ${scoreHtml('Career', p.career_value_score)}
+            ${scoreHtml('Project', p.project_value_score)}
+          </div>
+        </div>
+        ${preview ? `<div class="summary-preview">${esc(preview)}</div>` : ''}
+      </div>
+      <div class="detail" id="xdetail-${idx}">
+        <div class="tabs" id="xtabs-${idx}">
+          <div class="tab active" data-tab="gallery" onclick="switchTab('x',${idx},'gallery')">Gallery</div>
+          <div class="tab ${p.classified_at?'has-data':''}" data-tab="classify" onclick="switchTab('x',${idx},'classify')">Classification</div>
+          <div class="tab ${p.enriched_at?'has-data':''}" data-tab="enrich" onclick="switchTab('x',${idx},'enrich')">Enrichment</div>
+          <div class="tab ${(p.ocr_text||p.vision_text||p.transcript||p.polished_transcript)?'has-data':''}" data-tab="media" onclick="switchTab('x',${idx},'media')">Media Analysis</div>
+          <div class="tab ${p.expert_review?'has-data':''}" data-tab="expert" onclick="switchTab('x',${idx},'expert')">Expert Review</div>
+          <div class="tab has-data" data-tab="raw" onclick="switchTab('x',${idx},'raw')">Raw Content</div>
+        </div>
+        <div class="tab-content active" id="xtc-${idx}-gallery">
+          ${isVideo ? `<div class="video-placeholder">&#9654; Video content &mdash; available locally only</div>
+            <div class="section"><div class="section-title">Cover Frames</div>
+            <div class="gallery-grid">${[1,2,3,4,5].map(i =>
+              `<img class="gallery-img" src="media/images/${encodeURIComponent(noteId)}/frame_${i}.jpg"
+                alt="frame ${i}" loading="lazy"
+                onerror="this.style.display='none'">`
+            ).join('')}</div>
+          </div>` : ''}
+          ${dbImgs.length > 0 ? `<div class="gallery-grid">${dbImgs.map((img,i) =>
+            `<img class="gallery-img" src="${xhsImageUrl(noteId, img.image_index)}"
+              alt="image ${img.image_index}" loading="lazy"
+              onclick="openLightbox(${idx},${i})"
+              onerror="this.parentNode.replaceChild(Object.assign(document.createElement('div'),{className:'gallery-img-error',textContent:'Image not available'}),this)">`
+          ).join('')}</div>` : (!isVideo ? '<div class="no-media">No local images available. Run the pipeline to download media.</div>' : '')}
+          <div class="meta-row">
+            ${meta.thumbnail_url ? `<a href="${esc(meta.thumbnail_url)}" target="_blank" rel="noopener">CDN Thumbnail</a>` : ''}
+            <span>${dbImgs.length} local images</span>
+          </div>
+        </div>
+        <div class="tab-content" id="xtc-${idx}-classify">
+          <div class="section"><div class="section-title">LLM Raw Scores</div>
+            <div class="score-detail">
+              ${scoreCard('Relevance', p.relevance)}
+              ${scoreCard('Impact', p.impact)}
+              ${scoreCard('Muse Relevance', p.muse_relevance)}
+              ${scoreCard('Career Relevance', p.career_relevance)}
+              ${scoreCard('Project Relevance', p.project_relevance)}
+            </div>
+          </div>
+          <div class="section" style="margin-top:12px"><div class="section-title">Composite Scores</div>
+            <div class="score-detail">
+              ${scoreCard('Social Media Value', p.social_media_value_score)}
+              ${scoreCard('AI Value', p.ai_value_score)}
+              ${scoreCard('Muse Value', p.muse_value_score)}
+              ${scoreCard('Career Value', p.career_value_score)}
+              ${scoreCard('Project Value', p.project_value_score)}
+            </div>
+          </div>
+          <div class="meta-row">
+            <span>Category: <strong>${esc(p.category||'N/A')}</strong> / ${esc(p.subcategory||'')}</span>
+            <span>Time: ${esc(p.time_sensitivity||'N/A')}</span>
+            <span>Classified: ${fmtTs(p.classified_at)}</span>
+          </div>
+        </div>
+        <div class="tab-content" id="xtc-${idx}-enrich">
+          ${p.llm_summary ? `<div class="section"><div class="section-title">Summary</div><div class="section-body">${simpleMarkdown(p.llm_summary)}</div></div>` : ''}
+          ${p.llm_evaluation ? `<div class="section"><div class="section-title">Evaluation</div><div class="section-body">${simpleMarkdown(p.llm_evaluation)}</div></div>` : ''}
+          ${p.personal_insights ? `<div class="section"><div class="section-title">Personal Insights</div><div class="section-body">${simpleMarkdown(p.personal_insights)}</div></div>` : ''}
+          ${p.deep_dive ? `<div class="section"><div class="section-title">Deep Dive</div><div class="section-body">${simpleMarkdown(p.deep_dive)}</div></div>` : ''}
+          ${p.comment_consensus ? `<div class="section"><div class="section-title">Comment Consensus</div><div class="section-body">${simpleMarkdown(p.comment_consensus)}</div></div>` : ''}
+          ${!p.enriched_at ? '<div class="empty">Not yet enriched</div>' : ''}
+          <div class="meta-row"><span>Enriched: ${fmtTs(p.enriched_at)}</span></div>
+        </div>
+        <div class="tab-content" id="xtc-${idx}-media">
+          ${p.ocr_text ? `<div class="section"><div class="section-title">OCR Text</div><div class="raw-content">${esc(p.ocr_text)}</div></div>` : ''}
+          ${p.vision_text ? `<div class="section"><div class="section-title">Vision Analysis</div><div class="section-body">${simpleMarkdown(p.vision_text)}</div></div>` : ''}
+          ${p.transcript ? `<div class="section"><div class="section-title">Transcript</div><div class="raw-content">${esc(p.transcript)}</div></div>` : ''}
+          ${p.polished_transcript ? `<div class="section"><div class="section-title">Polished Transcript</div><div class="section-body">${simpleMarkdown(p.polished_transcript)}</div></div>` : ''}
+          ${!(p.ocr_text||p.vision_text||p.transcript||p.polished_transcript) ? '<div class="empty">No media analysis yet</div>' : ''}
+        </div>
+        <div class="tab-content" id="xtc-${idx}-expert">
+          ${p.expert_review ? `<div class="expert-review">${simpleMarkdown(p.expert_review)}</div>` : '<div class="empty">No expert review (scores below threshold)</div>'}
+        </div>
+        <div class="tab-content" id="xtc-${idx}-raw">
+          <div class="section"><div class="section-title">Content</div>
+            <div class="raw-content">${esc(p.content||'')}</div>
+          </div>
+          <div class="section" style="margin-top:12px"><div class="section-title">Author</div>
+            <div class="reasoning-json">${esc(JSON.stringify(p.author||{}, null, 2))}</div>
+          </div>
+          <div class="section" style="margin-top:12px"><div class="section-title">Engagement</div>
+            <div class="reasoning-json">${esc(JSON.stringify(p.engagement||{}, null, 2))}</div>
+          </div>
+          <div class="section" style="margin-top:12px"><div class="section-title">Tags</div>
+            <div class="reasoning-json">${esc(JSON.stringify(p.tags||[], null, 2))}</div>
+          </div>
+          <div class="section" style="margin-top:12px"><div class="section-title">Images (CDN URLs)</div>
+            <div class="reasoning-json">${esc(JSON.stringify(p.images||[], null, 2))}</div>
+          </div>
+          <div class="section" style="margin-top:12px"><div class="section-title">Metadata</div>
+            <div class="reasoning-json">${esc(JSON.stringify(p.metadata||{}, null, 2))}</div>
+          </div>
+          <div class="meta-row">
+            <span>Source: ${esc(p.source||'')}</span>
+            <span>Status: ${esc(p.pipeline_status||'N/A')}</span>
+            <span>First seen: ${fmtTs(p.first_seen_at)}</span>
+            <span>Updated: ${fmtTs(p.last_updated_at)}</span>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleXhs(idx) {
+  document.getElementById('xdetail-'+idx).classList.toggle('open');
+}
+
+// ---------------------------------------------------------------------------
+// Shared tab switcher
+// ---------------------------------------------------------------------------
+function switchTab(prefix, idx, tab) {
+  const p = prefix === 'n' ? 'n' : 'x';
+  document.querySelectorAll(`#${p}tabs-${idx} .tab`).forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  document.querySelectorAll(`[id^="${p}tc-${idx}-"]`).forEach(tc => tc.classList.remove('active'));
+  document.getElementById(`${p}tc-${idx}-${tab}`).classList.add('active');
+}
+
+// ---------------------------------------------------------------------------
+// Lightbox
+// ---------------------------------------------------------------------------
+function openLightbox(postIdx, imgIdx) {
+  const p = xhsPosts[postIdx];
+  const dbImgs = p.db_images || [];
+  lbImages = dbImgs.map(img => xhsImageUrl(p.red_id, img.image_index));
+  lbIdx = imgIdx;
+  _updateLightbox();
+  document.getElementById('lightbox').classList.add('open');
+}
+
+function _updateLightbox() {
+  document.getElementById('lightbox-img').src = lbImages[lbIdx] || '';
+  document.getElementById('lightbox-counter').textContent = `${lbIdx + 1} / ${lbImages.length}`;
+  document.querySelector('.lightbox-prev').style.visibility = lbImages.length > 1 ? '' : 'hidden';
+  document.querySelector('.lightbox-next').style.visibility = lbImages.length > 1 ? '' : 'hidden';
+}
+
+function lightboxPrev(e) {
+  e.stopPropagation();
+  lbIdx = (lbIdx - 1 + lbImages.length) % lbImages.length;
+  _updateLightbox();
+}
+
+function lightboxNext(e) {
+  e.stopPropagation();
+  lbIdx = (lbIdx + 1) % lbImages.length;
+  _updateLightbox();
+}
+
+function closeLightbox() {
+  document.getElementById('lightbox').classList.remove('open');
+}
+
+function closeLightboxOnBg(e) {
+  if (e.target === document.getElementById('lightbox')) closeLightbox();
+}
+
+document.addEventListener('keydown', e => {
+  if (!document.getElementById('lightbox').classList.contains('open')) return;
+  if (e.key === 'Escape') closeLightbox();
+  if (e.key === 'ArrowLeft') lightboxPrev(e);
+  if (e.key === 'ArrowRight') lightboxNext(e);
+});
+
+// ---------------------------------------------------------------------------
+// AI News filter event delegation
+// ---------------------------------------------------------------------------
+document.getElementById('news-controls').addEventListener('click', e => {
+  const pill = e.target.closest('.pill');
+  if (!pill) return;
+  const filterType = pill.dataset.filter;
+  const value = pill.dataset.value;
+  pill.closest('.filter-group').querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+  pill.classList.add('active');
+  if (filterType === 'source') activeNewsSource = value;
+  if (filterType === 'category') activeNewsCat = value;
+  if (filterType === 'status') activeNewsStatus = value;
+  renderNews();
+});
+
+document.getElementById('news-search').addEventListener('input', e => { newsSearch = e.target.value; renderNews(); });
+document.getElementById('news-sort').addEventListener('change', e => { newsSortKey = e.target.value; renderNews(); });
+
+// ---------------------------------------------------------------------------
+// XHS filter event delegation
+// ---------------------------------------------------------------------------
+document.getElementById('xhs-controls').addEventListener('click', e => {
+  const pill = e.target.closest('.pill');
+  if (!pill) return;
+  const filterType = pill.dataset.xfilter;
+  const value = pill.dataset.value;
+  pill.closest('.filter-group').querySelectorAll('.pill').forEach(p => p.classList.remove('active'));
+  pill.classList.add('active');
+  if (filterType === 'category') activeXhsCat = value;
+  if (filterType === 'status') activeXhsStatus = value;
+  renderXhs();
+});
+
+document.getElementById('xhs-search').addEventListener('input', e => { xhsSearch = e.target.value; renderXhs(); });
+document.getElementById('xhs-sort').addEventListener('change', e => { xhsSortKey = e.target.value; renderXhs(); });
+
+// ---------------------------------------------------------------------------
+// Data loading (static JSON files)
+// ---------------------------------------------------------------------------
+Promise.allSettled([
+  fetch('./data/articles.json').then(r => r.ok ? r.json() : r.text().then(t => { throw new Error('Articles load error: '+t); })),
+  fetch('./data/xhs-posts.json').then(r => r.ok ? r.json() : r.text().then(t => { throw new Error('XHS load error: '+t); })),
+  fetch('./data/meta.json').then(r => r.ok ? r.json() : null),
+]).then(([newsResult, xhsResult, metaResult]) => {
+  if (newsResult.status === 'rejected') {
+    console.error('[viewer] Articles load failed:', newsResult.reason);
+    document.getElementById('news-container').innerHTML =
+      `<div class="empty" style="color:var(--red)">Articles load error: ${esc(newsResult.reason?.message || String(newsResult.reason))}</div>`;
+  }
+  if (xhsResult.status === 'rejected') {
+    console.error('[viewer] XHS load failed:', xhsResult.reason);
+  }
+  const newsData = newsResult.status === 'fulfilled' ? newsResult.value : [];
+  const xhsData = xhsResult.status === 'fulfilled' ? xhsResult.value : [];
+  articles = newsData;
+  xhsPosts = xhsData;
+
+  // Build footer from meta
+  if (metaResult.status === 'fulfilled' && metaResult.value) {
+    const meta = metaResult.value;
+    document.getElementById('build-footer').textContent =
+      `Built ${new Date(meta.built_at).toLocaleString()} | ${meta.articles_count} articles, ${meta.xhs_posts_count} XHS posts`;
+  }
+
+  // Build AI News source pills
+  const srcGroup = document.getElementById('source-filters');
+  [...new Set(articles.map(a => a.source))].sort().forEach(src => {
+    const btn = document.createElement('button');
+    btn.className = 'pill'; btn.dataset.filter = 'source'; btn.dataset.value = src;
+    const count = articles.filter(a => a.source === src).length;
+    btn.textContent = `${SRC[src]||src} (${count})`;
+    srcGroup.appendChild(btn);
+  });
+
+  // Build AI News category pills
+  const catGroup = document.getElementById('category-filters');
+  [...new Set(articles.filter(a => a.category).map(a => a.category))].sort().forEach(cat => {
+    const btn = document.createElement('button');
+    btn.className = 'pill'; btn.dataset.filter = 'category'; btn.dataset.value = cat;
+    btn.textContent = `${cat} (${articles.filter(a => a.category === cat).length})`;
+    catGroup.appendChild(btn);
+  });
+
+  // Build XHS category pills
+  const xhsCatGroup = document.getElementById('xhs-category-filters');
+  [...new Set(xhsPosts.filter(p => p.category).map(p => p.category))].sort().forEach(cat => {
+    const btn = document.createElement('button');
+    btn.className = 'pill'; btn.dataset.xfilter = 'category'; btn.dataset.value = cat;
+    btn.textContent = `${cat} (${xhsPosts.filter(p => p.category === cat).length})`;
+    xhsCatGroup.appendChild(btn);
+  });
+
+  updateStats();
+  renderNews();
+  renderXhs();
+});
+</script>
+</body>
+</html>

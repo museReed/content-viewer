@@ -27,7 +27,7 @@ def load_articles(db_path: Path) -> list[dict]:
         rows = conn.execute(
             """SELECT id, source, source_label, title, url, content, author,
                       published_at, category, impact, urgency,
-                      ai_value_score, muse_relevance, muse_value_score,
+                      content_value_score, muse_relevance, muse_value_score,
                       career_relevance, career_value_score,
                       project_relevance, project_value_score,
                       classification_reasoning,

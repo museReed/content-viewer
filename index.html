@@ -235,7 +235,7 @@
     <select class="sort-select" id="news-sort">
       <option value="date_desc">Newest first</option>
       <option value="date_asc">Oldest first</option>
-      <option value="ai_desc">AI Value high</option>
+      <option value="ai_desc">Content Value high</option>
       <option value="muse_desc">Muse high</option>
       <option value="career_desc">Career high</option>
       <option value="project_desc">Project high</option>
@@ -263,7 +263,7 @@
     <select class="sort-select" id="xhs-sort">
       <option value="date_desc">Newest first</option>
       <option value="date_asc">Oldest first</option>
-      <option value="ai_desc">AI Value high</option>
+      <option value="ai_desc">Content Value high</option>
       <option value="muse_desc">Muse high</option>
       <option value="career_desc">Career high</option>
     </select>
@@ -436,7 +436,7 @@ function sortNews(arr) {
   const copy = [...arr];
   switch(newsSortKey) {
     case 'date_asc': return copy.sort((a,b) => (a.published_at||'').localeCompare(b.published_at||''));
-    case 'ai_desc': return copy.sort((a,b) => (b.ai_value_score||0)-(a.ai_value_score||0));
+    case 'ai_desc': return copy.sort((a,b) => (b.content_value_score||0)-(a.content_value_score||0));
     case 'muse_desc': return copy.sort((a,b) => (b.muse_relevance||0)-(a.muse_relevance||0));
     case 'career_desc': return copy.sort((a,b) => (b.career_relevance||0)-(a.career_relevance||0));
     case 'project_desc': return copy.sort((a,b) => (b.project_relevance||0)-(a.project_relevance||0));
@@ -478,7 +478,7 @@ function renderNews() {
         <div class="title-text">${esc(a.title)}</div>
         <div class="card-row2">
           <div class="scores">
-            ${scoreHtml('AI', a.ai_value_score)}${scoreHtml('Muse', a.muse_relevance)}
+            ${scoreHtml('Content', a.content_value_score)}${scoreHtml('Muse', a.muse_relevance)}
             ${scoreHtml('Career', a.career_relevance)}${scoreHtml('Project', a.project_relevance)}
             ${scoreHtml('Impact', a.impact)}${scoreHtml('Urgency', a.urgency)}
           </div>
@@ -495,7 +495,7 @@ function renderNews() {
         </div>
         <div class="tab-content active" id="ntc-${idx}-classify">
           <div class="section"><div class="section-title">Scores</div>
-            <div class="score-detail">${scoreCard('AI Value',a.ai_value_score)}${scoreCard('Impact',a.impact)}${scoreCard('Urgency',a.urgency)}${scoreCard('Muse Relevance',a.muse_relevance)}${scoreCard('Career Relevance',a.career_relevance)}${scoreCard('Project Relevance',a.project_relevance)}</div>
+            <div class="score-detail">${scoreCard('Content Value',a.content_value_score)}${scoreCard('Impact',a.impact)}${scoreCard('Urgency',a.urgency)}${scoreCard('Muse Relevance',a.muse_relevance)}${scoreCard('Career Relevance',a.career_relevance)}${scoreCard('Project Relevance',a.project_relevance)}</div>
           </div>
           <div class="section"><div class="section-title">Reasoning</div>
             <div class="reasoning-json">${reasoning ? esc(reasoning) : '<em>No reasoning data</em>'}</div>
@@ -558,7 +558,7 @@ function sortXhs(arr) {
   const copy = [...arr];
   switch(xhsSortKey) {
     case 'date_asc': return copy.sort((a,b) => (a.first_seen_at||0)-(b.first_seen_at||0));
-    case 'ai_desc': return copy.sort((a,b) => (b.ai_value_score||0)-(a.ai_value_score||0));
+    case 'ai_desc': return copy.sort((a,b) => (b.content_value_score||0)-(a.content_value_score||0));
     case 'muse_desc': return copy.sort((a,b) => (b.muse_relevance||0)-(a.muse_relevance||0));
     case 'career_desc': return copy.sort((a,b) => (b.career_relevance||0)-(a.career_relevance||0));
     default: return copy.sort((a,b) => (b.first_seen_at||0)-(a.first_seen_at||0));
@@ -632,7 +632,8 @@ function renderXhs() {
         </div>
         <div class="card-row2">
           <div class="scores">
-            ${scoreHtml('AI', p.ai_value_score)}
+            ${scoreHtml('Content', p.content_value_score)}
+            ${scoreHtml('Social', p.social_media_value_score)}
             ${scoreHtml('Muse', p.muse_value_score)}
             ${scoreHtml('Career', p.career_value_score)}
             ${scoreHtml('Project', p.project_value_score)}
@@ -673,6 +674,7 @@ function renderXhs() {
           <div class="section"><div class="section-title">LLM Raw Scores</div>
             <div class="score-detail">
               ${scoreCard('Relevance', p.relevance)}
+              ${scoreCard('Urgency', p.urgency)}
               ${scoreCard('Impact', p.impact)}
               ${scoreCard('Muse Relevance', p.muse_relevance)}
               ${scoreCard('Career Relevance', p.career_relevance)}
@@ -681,16 +683,17 @@ function renderXhs() {
           </div>
           <div class="section" style="margin-top:12px"><div class="section-title">Composite Scores</div>
             <div class="score-detail">
+              ${scoreCard('Content Value', p.content_value_score)}
               ${scoreCard('Social Media Value', p.social_media_value_score)}
-              ${scoreCard('AI Value', p.ai_value_score)}
               ${scoreCard('Muse Value', p.muse_value_score)}
               ${scoreCard('Career Value', p.career_value_score)}
               ${scoreCard('Project Value', p.project_value_score)}
             </div>
           </div>
           <div class="meta-row">
-            <span>Category: <strong>${esc(p.category||'N/A')}</strong> / ${esc(p.subcategory||'')}</span>
-            <span>Time: ${esc(p.time_sensitivity||'N/A')}</span>
+            <span>Category: <strong>${esc(p.category||'N/A')}</strong></span>
+            <span>Subcategory: <strong>${esc(p.subcategory||'N/A')}</strong></span>
+            <span>Urgency: <strong>${p.urgency!=null?(p.urgency*100).toFixed(0)+'%':'N/A'}</strong></span>
             <span>Classified: ${fmtTs(p.classified_at)}</span>
           </div>
         </div>

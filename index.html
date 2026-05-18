@@ -651,8 +651,7 @@ function renderXhs() {
           <div class="tab has-data" data-tab="raw" onclick="switchTab('x',${idx},'raw')">Raw Content</div>
         </div>
         <div class="tab-content active" id="xtc-${idx}-gallery">
-          ${isVideo ? `<div class="video-placeholder">&#9654; Video content &mdash; available locally only</div>
-            <div class="section"><div class="section-title">Cover Frames</div>
+          ${isVideo ? `<div class="section"><div class="section-title">Cover Frames</div>
             <div class="gallery-grid">${[1,2,3,4,5].map(i =>
               `<img class="gallery-img" src="media/images/${encodeURIComponent(noteId)}/frame_${i}.jpg"
                 alt="frame ${i}" loading="lazy"
